@@ -63,7 +63,7 @@ public class GameLogic {
     public void setCurrentPlayer(Piece currentPlayer) {
         this.currentPlayer = currentPlayer;
     }
-    public boolean getYourTurn(){
+    public boolean isYourTurn(){
         return yourTurn;
     }
 
@@ -74,4 +74,9 @@ public class GameLogic {
     public void setObservers(List<GameObserver> observers) {
         this.observers = observers;
     }
+
+    public void setPlayerPiece(Piece playerPiece) {
+        this.currentPlayer = playerPiece;
+    }
+
 }

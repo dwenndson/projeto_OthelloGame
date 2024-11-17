@@ -6,9 +6,9 @@ public class ChatMessage extends Message implements Serializable  {
     private String message;
     private String sender;
 
-    public ChatMessage(String message) {
+    public ChatMessage(String sender, String message) {
         this.message = message;
-        this.sender = null;
+        this.sender = sender;
         // Podemos adicionar o nome do jogador como remetente
     }
 

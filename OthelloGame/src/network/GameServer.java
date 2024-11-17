@@ -3,6 +3,7 @@ package network;
 import game.GameLogic;
 import game.Piece;
 
+import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
@@ -46,8 +47,10 @@ public class GameServer {
         boolean player1Turn = true;
 
         // Notificar os jogadores sobre quem é quem
-        outPlayer1.writeObject("Você é o jogador 1 (PRETO)");
-        outPlayer2.writeObject("Você é o jogador 2 (BRANCO)");
+        outPlayer1.writeObject(new TurnMessage(Piece.BLACK));
+        outPlayer1.flush();
+        outPlayer2.writeObject(new TurnMessage(Piece.WHITE));
+        outPlayer2.flush();
 
         while (gameRunning) {
             if (player1Turn) {
@@ -59,7 +62,8 @@ public class GameServer {
                 outPlayer2.writeObject(move);
             } else {
                 // Solicitar movimento do jogador 2
-                outPlayer2.writeObject("Seu turno");
+                outPlayer2.writeObject(new TurnMessage(Piece.WHITE));
+                outPlayer2.flush();
                 Object move = inPlayer2.readObject();
                 // Validar e aplicar o movimento
                 // Enviar atualização para o jogador 1
@@ -107,63 +111,83 @@ public class GameServer {
         }
     }
 
-    private void handleClient(ObjectInputStream in, ObjectOutputStream out, ObjectOutputStream outOtherClient, boolean isPlayer1) {
+    private void handleClient(ObjectInputStream in, ObjectOutputStream out, ObjectOutputStream outOtherClient, Boolean isPlayer1) {
         try {
+            Piece playerPiece = isPlayer1 ? Piece.BLACK : Piece.WHITE;
+
+            // Enviar mensagem inicial ao cliente indicando qual peça ele é
+            out.writeObject(new TurnMessage(playerPiece));
+            out.flush();
+
             while (true) {
-                Object obj = in.readObject();
-                if (obj instanceof Message) {
-                    Message message = (Message) obj;
+                Message message = (Message) in.readObject();
 
-                    if (message instanceof ChatMessage) {
-                        ChatMessage chatMessage = (ChatMessage) message;
-                        // Repassar a mensagem para o outro cliente
-                        outOtherClient.writeObject(chatMessage);
-                        outOtherClient.flush();
-                    } else if (message instanceof MoveMessage) {
-                        MoveMessage moveMessage = (MoveMessage) message;
-                        synchronized (gameLogic) {
-                            Piece playerPiece = isPlayer1 ? Piece.BLACK : Piece.WHITE;
-                            if (gameLogic.getCurrentPlayer() == playerPiece) {
-                                try {
-                                    if (gameLogic.makeMove(moveMessage.getRow(), moveMessage.getCol())) {
-                                        // Enviar o estado atualizado para ambos os clientes
-                                        GameStateMessage gameStateMessage = new GameStateMessage(gameLogic.getBoard());
-                                        out.writeObject(gameStateMessage);
-                                        out.flush();
-                                        outOtherClient.writeObject(gameStateMessage);
-                                        outOtherClient.flush();
-
-                                        // Notificar os turnos
-                                        out.writeObject(new TurnMessage(false)); // Agora é o turno do outro jogador
-                                        out.flush();
-                                        outOtherClient.writeObject(new TurnMessage(true));
-                                        outOtherClient.flush();
-                                    }
-                                } catch (Exception e) {
-                                    out.writeObject(new ErrorMessage(e.getMessage()));
+                if (message instanceof ChatMessage) {
+                    ChatMessage chatMessage = (ChatMessage) message;
+                    // Repassar a mensagem de chat para o outro cliente
+                    outOtherClient.writeObject(chatMessage);
+                    outOtherClient.flush();
+                } else if (message instanceof MoveMessage) {
+                    MoveMessage moveMessage = (MoveMessage) message;
+                    synchronized (gameLogic) {
+                        if (gameLogic.getCurrentPlayer() == playerPiece) {
+                            try {
+                                if (gameLogic.makeMove(moveMessage.getRow(), moveMessage.getCol())) {
+                                    // Enviar o estado atualizado para ambos os clientes
+                                    GameStateMessage gameStateMessage = new GameStateMessage(gameLogic.getBoard());
+                                    out.writeObject(gameStateMessage);
                                     out.flush();
+                                    outOtherClient.writeObject(gameStateMessage);
+                                    outOtherClient.flush();
+
+                                    // Notificar os turnos
+                                    out.writeObject(new TurnMessage(gameLogic.getCurrentPlayer()));
+                                    out.flush();
+                                    outOtherClient.writeObject(new TurnMessage(gameLogic.getCurrentPlayer()));
+                                    outOtherClient.flush();
                                 }
-                            } else {
-                                out.writeObject(new ErrorMessage("Não é o seu turno."));
+                            } catch (Exception e) {
+                                out.writeObject(new ErrorMessage(e.getMessage()));
                                 out.flush();
                             }
+                        } else {
+                            out.writeObject(new ErrorMessage("Não é o seu turno."));
+                            out.flush();
                         }
-                    } else if (message instanceof ResignMessage) {
-                        // Lidar com desistência
-                        outOtherClient.writeObject(new ErrorMessage("O oponente desistiu. Você venceu!"));
-                        outOtherClient.flush();
-                        // Encerrar conexões
-                        break;
                     }
-                    // Outros tipos de mensagens
-                } else {
-                    out.writeObject(new ErrorMessage("Mensagem desconhecida recebida."));
-                    out.flush();
+                } else if (message instanceof ResignMessage) {
+                    // Lidar com desistência
+                    outOtherClient.writeObject(new ErrorMessage("O oponente desistiu. Você venceu!"));
+                    outOtherClient.flush();
+                    // Fechar conexões e encerrar threads
+                    break;
                 }
+                // Outros tipos de mensagens, se houver
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+        }catch (Exception e) {
+            // O cliente desconectou
+            System.out.println("Jogador " + (isPlayer1 ? "1" : "2") + " desconectou.");
+            // Notificar o outro jogador
+            try {
+                outOtherClient.writeObject(new ErrorMessage("O oponente desconectou. Aguardando reconexão por 30 segundos."));
+                outOtherClient.flush();
+                // Iniciar timer de 30 segundos
+                boolean reconnected = waitForReconnection(isPlayer1);
+                if (!reconnected) {
+                    outOtherClient.writeObject(new ErrorMessage("O oponente não reconectou. Você venceu!"));
+                    outOtherClient.flush();
+                    // Fechar conexões
+                    outOtherClient.close();
+                }
+            } catch (IOException ioException) {
+                ioException.printStackTrace();
+            }
         }
+    }
+
+    private boolean waitForReconnection(boolean isPlayer) {
+
+        return false;
     }
 
 }

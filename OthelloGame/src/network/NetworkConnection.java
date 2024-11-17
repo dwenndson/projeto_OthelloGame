@@ -9,7 +9,7 @@ public abstract class NetworkConnection {
     protected ObjectOutputStream out;
     protected ObjectInputStream in;
 
-    protected abstract void createConnection() throws Exception;
+    protected abstract void createConnection(String serverIP) throws Exception;
 
     public void send(Object data) throws Exception {
         out.writeObject(data);

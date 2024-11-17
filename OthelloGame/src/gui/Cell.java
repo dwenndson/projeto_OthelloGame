@@ -19,10 +19,11 @@ public class Cell extends StackPane {
     private GameLogic gameLogic;
     private GameClient client;
 
-    public Cell(int row, int col, GameLogic gameLogic) {
+    public Cell(int row, int col, GameLogic gameLogic, GameClient client) {
         this.row = row;
         this.col = col;
         this.gameLogic = gameLogic;
+        this.client =  client;
 
         border = new Rectangle(75, 75);
         border.setFill(Color.GREEN);
@@ -39,11 +40,15 @@ public class Cell extends StackPane {
     }
 
     private void handleClick() {
-        System.out.println("Célula clicada: (" + row + ", " + col + ")");
         try {
-            Piece currentPlayer = gameLogic.getCurrentPlayer();
-            if (gameLogic.getCurrentPlayer() == client.getPlayerPiece()) {
-                client.sendMove(row, col);
+            if (gameLogic.isYourTurn()) {
+                // Verificar se o movimento é válido localmente
+                if (gameLogic.getBoard().isValidMove(row, col, client.getPlayerPiece())) {
+                    // Enviar o movimento para o servidor
+                    client.sendMove(row, col);
+                } else {
+                    System.out.println("Movimento inválido.");
+                }
             } else {
                 System.out.println("Não é o seu turno.");
             }

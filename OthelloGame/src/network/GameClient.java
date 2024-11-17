@@ -10,19 +10,31 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 
 public class GameClient extends  NetworkConnection{
-    private String serverIP;
     private OthelloGame othelloGame;
     private GameLogic gameLogic;
+    private ObjectOutputStream out;
+    private ObjectInputStream in;
+    private Socket socket;
     private Piece playerPiece;
-
-    public GameClient(){}
-    public GameClient(OthelloGame othelloGame) {
+    public GameClient(OthelloGame othelloGame, GameLogic gameLogic) {
         this.othelloGame = othelloGame;
+        this.gameLogic = gameLogic;
     }
+
+    public Piece getPlayerPiece() {
+        return playerPiece;
+    }
+
+    public void startClient(String serverIP) throws Exception {
+        createConnection(serverIP);
+        communicateWithServer();
+    }
+
 
     public void sendChatMessage(String message) {
         try {
-            out.writeObject(new ChatMessage(message));
+            ChatMessage chatMessage = new ChatMessage(playerPiece.toString(), message);
+            out.writeObject(chatMessage);
             out.flush();
         } catch (Exception e) {
             e.printStackTrace();
@@ -47,11 +59,23 @@ public class GameClient extends  NetworkConnection{
         }
     }
 
-    protected void createConnection() throws Exception {
+    protected void createConnection(String serverIP) throws Exception {
         socket = new Socket(serverIP, 55555);
         System.out.println("Conectado ao servidor!");
         out = new ObjectOutputStream(socket.getOutputStream());
         in = new ObjectInputStream(socket.getInputStream());
+
+        // Receber a peça do jogador do servidor
+        TurnMessage turnMessage = (TurnMessage) in.readObject();
+        playerPiece = turnMessage.getCurrentPlayer();
+        gameLogic.setPlayerPiece(playerPiece);
+
+        // Definir se é o seu turno inicial
+        gameLogic.setYourTurn(playerPiece == Piece.BLACK); // Preto começa
+
+        othelloGame.updateTurnIndicator();
+
+        System.out.println("Você é o jogador com as peças: " + playerPiece);
 
         //Iniciar a comunicação com o servidor
         communicateWithServer();
@@ -69,7 +93,8 @@ public class GameClient extends  NetworkConnection{
                 gameLogic.setBoard(gameStateMessage.getBoard());
             } else if (message instanceof TurnMessage) {
                 TurnMessage turnMessage = (TurnMessage) message;
-                gameLogic.setYourTurn(turnMessage.isYourTurn());
+                gameLogic.setYourTurn(turnMessage.getCurrentPlayer() == playerPiece);
+                othelloGame.updateTurnIndicator();
             } else if (message instanceof ErrorMessage) {
                 ErrorMessage errorMessage = (ErrorMessage) message;
                 System.out.println("Erro: " + errorMessage.getError());
@@ -87,12 +112,4 @@ public class GameClient extends  NetworkConnection{
         // Atualizar o estado do jogo na interface gráfica com base nos dados recebidos do servidor
     }
 
-    public void startClient(String localhost) throws Exception {
-        createConnection();
-        // Lógica para interagir com o servidor
-    }
-
-    public Piece getPlayerPiece() {
-        return playerPiece;
-    }
 }

@@ -4,13 +4,16 @@ import game.Board;
 import game.GameLogic;
 import game.Piece;
 import javafx.scene.layout.GridPane;
+import network.GameClient;
 
 public class BoardView extends GridPane implements GameObserver {
     private GameLogic gameLogic;
+    private GameClient client;
     private Cell[][] cells;
 
-    public BoardView(GameLogic gameLogic){
+    public BoardView(GameLogic gameLogic, GameClient client){
         this.gameLogic = gameLogic;
+        this.client = client;
         this.gameLogic.addObserver(this);
         cells = new Cell[Board.SIZE][Board.SIZE];
         initializeBoard();
@@ -24,7 +27,7 @@ public class BoardView extends GridPane implements GameObserver {
     private void initializeBoard() {
         for (int row = 0; row < Board.SIZE; row++) {
             for (int col = 0; col < Board.SIZE; col++) {
-                Cell cell = new Cell(row, col, gameLogic);
+                Cell cell = new Cell(row, col, gameLogic, client);
                 cells[row][col] = cell;
                 add(cell, col, row);
             }

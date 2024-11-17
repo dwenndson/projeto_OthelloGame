@@ -5,6 +5,7 @@ import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
@@ -21,6 +22,7 @@ public class OthelloGame extends Application {
     private TextArea chatArea;
     private TextField chatInput;
     private Button sendButton;
+    private Label turnIndicator;
 
     private static final int BOARD_SIZE = 8;
 
@@ -33,7 +35,14 @@ public class OthelloGame extends Application {
 
         gameLogic = new GameLogic();
 
-        boardView = new BoardView(gameLogic);
+        client = new GameClient(this, gameLogic);
+
+        boardView = new BoardView(gameLogic, client);
+
+        turnIndicator  = new Label();
+        updateTurnIndicator();
+
+        VBox leftPane = new VBox(10, turnIndicator);
 
         // Configurar o chat
         setupChat();
@@ -41,6 +50,7 @@ public class OthelloGame extends Application {
         BorderPane root = new BorderPane();
         root.setCenter(boardView);
         root.setRight(createChatPane());
+        root.setLeft(leftPane);
 
         // Configurar a cena
         Scene scene = new Scene(root, 800, 600);
@@ -50,7 +60,7 @@ public class OthelloGame extends Application {
 
         new Thread(() -> {
             try {
-                client = new GameClient(this);
+                client = new GameClient(this, gameLogic);
                 client.startClient("localhost");
             } catch (Exception e) {
                 e.printStackTrace();
@@ -58,9 +68,18 @@ public class OthelloGame extends Application {
         }).start();
     }
 
+    public void updateTurnIndicator(){
+        Platform.runLater(() -> {
+            String turnText = gameLogic.isYourTurn() ? "Seu turno" : "Turno do oponente";
+            turnIndicator.setText(turnText);
+        });
+    }
+
     public void updateChat(ChatMessage chatMessage) {
         Platform.runLater(() -> {
-            chatArea.appendText(chatMessage.getMessage() + "\n");
+            String sender = chatMessage.getSender();
+            String message = chatMessage.getMessage();
+            chatArea.appendText(sender + ": " + message + "\n");
         });
     }
 
@@ -87,9 +106,9 @@ public class OthelloGame extends Application {
     private void sendMessage() {
         String message = chatInput.getText();
         if (!message.isEmpty()) {
-            // Enviar a mensagem para o servidor
             client.sendChatMessage(message);
             chatInput.clear();
+            chatArea.appendText("Você: " + message + "\n");
         }
     }
 }
